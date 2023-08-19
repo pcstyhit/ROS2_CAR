@@ -1,0 +1,10 @@
+*.pyc
+**/__pycache__
+/reference
+/build
+/devel
+/install
+/log
+/.catkin_workspace
+/src/.vscode
+/src/CMakeLists.txt
