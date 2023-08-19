@@ -1,6 +1,8 @@
 /*********************************************************************
  *  ROSArduinoBridge
- 
+    可以通过一组简单的串口命令来控制差分机器人并接收回传的传感器与里程计
+    数据，默认使用的是 Arduino Mega + Pololu电机驱动模块，如果使用其他的
+    编码器或电机驱动需要重写readEncoder()与setMotorSpeed()函数
     A set of simple serial commands to control a differential drive
     robot and receive back sensor and odometry data. Default 
     configuration assumes use of an Arduino Mega + Pololu motor
@@ -10,11 +12,11 @@
 
     Created for the Pi Robot Project: http://www.pirobot.org
     and the Home Brew Robotics Club (HBRC): http://hbrobotics.org
-    
+
     Authors: Patrick Goebel, James Nugen
 
     Inspired and modeled after the ArbotiX driver by Michael Ferguson
-    
+
     Software License Agreement (BSD License)
 
     Copyright (c) 2012, Patrick Goebel.
@@ -44,37 +46,44 @@
     ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
-
-//#define USE_BASE      // Enable the base controller code
-#undef USE_BASE     // Disable the base controller code
+//是否启用基座控制器
+#define USE_BASE      // Enable the base controller code
+//#undef USE_BASE     // Disable the base controller code
 
 /* Define the motor controller and encoder library you are using */
 #ifdef USE_BASE
    /* The Pololu VNH5019 dual motor driver shield */
-   #define POLOLU_VNH5019
+   //#define POLOLU_VNH5019
 
    /* The Pololu MC33926 dual motor driver shield */
    //#define POLOLU_MC33926
 
    /* The RoboGaia encoder shield */
-   #define ROBOGAIA
-   
+   //#define ROBOGAIA
+
    /* Encoders directly attached to Arduino board */
    //#define ARDUINO_ENC_COUNTER
+   #define ARDUINO_MY_COUNTER
 
    /* L298 Motor driver*/
    //#define L298_MOTOR_DRIVER
+   //使用自定义的L298P电机驱动
+   #define L298P_MOTOR_DRIVER
 #endif
 
-#define USE_SERVOS  // Enable use of PWM servos as defined in servos.h
-//#undef USE_SERVOS     // Disable use of PWM servos
+//是否启用舵机
+//#define USE_SERVOS  // Enable use of PWM servos as defined in servos.h
+#undef USE_SERVOS     // Disable use of PWM servos
 
 /* Serial port baud rate */
+//波特率
 #define BAUDRATE     57600
 
 /* Maximum PWM signal */
+//最大PWM值
 #define MAX_PWM        255
 
+//根据Arduino型号来包含对应的头文件
 #if defined(ARDUINO) && ARDUINO >= 100
 #include "Arduino.h"
 #else
@@ -82,17 +91,21 @@
 #endif
 
 /* Include definition of serial commands */
+//串口命令
 #include "commands.h"
 
 /* Sensor functions */
+//传感器文件
 #include "sensors.h"
 
 /* Include servo support if required */
+//如果启用舵机，需要包含的头文件
 #ifdef USE_SERVOS
    #include <Servo.h>
    #include "servos.h"
 #endif
 
+//如果启用基座控制器需要包含的头文件
 #ifdef USE_BASE
   /* Motor driver function definitions */
   #include "motor_driver.h"
@@ -104,17 +117,17 @@
   #include "diff_controller.h"
 
   /* Run the PID loop at 30 times per second */
-  #define PID_RATE           30     // Hz
+  #define PID_RATE           30     // Hz PID调试频率
 
   /* Convert the rate into an interval */
-  const int PID_INTERVAL = 1000 / PID_RATE;
-  
+  const int PID_INTERVAL = 1000 / PID_RATE; // PID调试周期
+
   /* Track the next time we make a PID calculation */
-  unsigned long nextPID = PID_INTERVAL;
+  unsigned long nextPID = PID_INTERVAL; //PID调试的结束时刻标记
 
   /* Stop the robot if it hasn't received a movement command
    in this number of milliseconds */
-  #define AUTO_STOP_INTERVAL 2000
+  #define AUTO_STOP_INTERVAL 5000
   long lastMotorCommand = AUTO_STOP_INTERVAL;
 #endif
 
@@ -134,11 +147,13 @@ char cmd;
 char argv1[16];
 char argv2[16];
 
+
 // The arguments converted to integers
 long arg1;
 long arg2;
 
 /* Clear the current command parameters */
+//重置命令
 void resetCommand() {
   cmd = NULL;
   memset(argv1, 0, sizeof(argv1));
@@ -150,14 +165,16 @@ void resetCommand() {
 }
 
 /* Run a command.  Commands are defined in commands.h */
+//执行串口命令
 int runCommand() {
   int i = 0;
   char *p = argv1;
   char *str;
   int pid_args[4];
+
   arg1 = atoi(argv1);
   arg2 = atoi(argv2);
-  
+
   switch(cmd) {
   case GET_BAUDRATE:
     Serial.println(BAUDRATE);
@@ -194,7 +211,7 @@ int runCommand() {
     Serial.println(servos[arg1].getServo().read());
     break;
 #endif
-    
+
 #ifdef USE_BASE
   case READ_ENCODERS:
     Serial.print(readEncoder(LEFT));
@@ -206,7 +223,7 @@ int runCommand() {
     resetPID();
     Serial.println("OK");
     break;
-  case MOTOR_SPEEDS:
+  case MOTOR_SPEEDS: //---------------------------------------------
     /* Reset the auto stop timer */
     lastMotorCommand = millis();
     if (arg1 == 0 && arg2 == 0) {
@@ -215,6 +232,7 @@ int runCommand() {
       moving = 0;
     }
     else moving = 1;
+    //设置左右电机目标转速分别为参数1和参数2
     leftPID.TargetTicksPerFrame = arg1;
     rightPID.TargetTicksPerFrame = arg2;
     Serial.println("OK"); 
@@ -228,6 +246,17 @@ int runCommand() {
     Kd = pid_args[1];
     Ki = pid_args[2];
     Ko = pid_args[3];
+
+    // left_Kp = pid_args[0];
+    // left_Kd = pid_args[1];
+    // left_Ki = pid_args[2];
+    // left_Ko = pid_args[3];
+
+    // right_Kp = pid_args[4];
+    // right_Kd = pid_args[5];
+    // right_Ki = pid_args[6];
+    // right_Ko = pid_args[7];
+    
     Serial.println("OK");
     break;
 #endif
@@ -249,20 +278,22 @@ void setup() {
     DDRD &= ~(1<<LEFT_ENC_PIN_B);
     DDRC &= ~(1<<RIGHT_ENC_PIN_A);
     DDRC &= ~(1<<RIGHT_ENC_PIN_B);
-    
+
     //enable pull up resistors
     PORTD |= (1<<LEFT_ENC_PIN_A);
     PORTD |= (1<<LEFT_ENC_PIN_B);
     PORTC |= (1<<RIGHT_ENC_PIN_A);
     PORTC |= (1<<RIGHT_ENC_PIN_B);
-    
+
     // tell pin change mask to listen to left encoder pins
     PCMSK2 |= (1 << LEFT_ENC_PIN_A)|(1 << LEFT_ENC_PIN_B);
     // tell pin change mask to listen to right encoder pins
     PCMSK1 |= (1 << RIGHT_ENC_PIN_A)|(1 << RIGHT_ENC_PIN_B);
-    
+
     // enable PCINT1 and PCINT2 interrupt in the general interrupt mask
     PCICR |= (1 << PCIE1) | (1 << PCIE2);
+  #elif defined ARDUINO_MY_COUNTER
+    initEncoders();
   #endif
   initMotorController();
   resetPID();
@@ -285,8 +316,9 @@ void setup() {
    interval and check for auto-stop conditions.
 */
 void loop() {
+  //读取串口命令
   while (Serial.available() > 0) {
-    
+
     // Read the next character
     chr = Serial.read();
 
@@ -324,14 +356,15 @@ void loop() {
       }
     }
   }
-  
+
 // If we are using base control, run a PID calculation at the appropriate intervals
 #ifdef USE_BASE
+  //如果当前时刻大于 nextPID,那么就执行PID调速，并在 nextPID 上自增一个PID调试周期
   if (millis() > nextPID) {
     updatePID();
     nextPID += PID_INTERVAL;
   }
-  
+
   // Check to see if we have exceeded the auto-stop interval
   if ((millis() - lastMotorCommand) > AUTO_STOP_INTERVAL) {;
     setMotorSpeeds(0, 0);
@@ -347,4 +380,3 @@ void loop() {
   }
 #endif
 }
-

@@ -1,15 +1,15 @@
 /* Functions and type-defs for PID control.
 
    Taken mostly from Mike Ferguson's ArbotiX code which lives at:
-   
+
    http://vanadium-ros-pkg.googlecode.com/svn/trunk/arbotix/
 */
 
 /* PID setpoint info For a Motor */
 typedef struct {
-  double TargetTicksPerFrame;    // target speed in ticks per frame
-  long Encoder;                  // encoder count
-  long PrevEnc;                  // last encoder count
+  double TargetTicksPerFrame;    // target speed in ticks per frame 目标转速
+  long Encoder;                  // encoder count 编码器计数
+  long PrevEnc;                  // last encoder count 上次的编码器计数
 
   /*
   * Using previous input (PrevInput) instead of PrevError to avoid derivative kick,
@@ -65,6 +65,7 @@ void resetPID(){
 }
 
 /* PID routine to compute the next motor commands */
+//左右电机具体调试函数
 void doPID(SetPointInfo * p) {
   long Perror;
   long output;
@@ -74,7 +75,8 @@ void doPID(SetPointInfo * p) {
   input = p->Encoder - p->PrevEnc;
   Perror = p->TargetTicksPerFrame - input;
 
-
+  //根据 input 绘图
+  // Serial.println(input);
   /*
   * Avoid derivative kick and allow tuning changes,
   * see http://brettbeauregard.com/blog/2011/04/improving-the-beginner%E2%80%99s-pid-derivative-kick/
@@ -103,11 +105,12 @@ void doPID(SetPointInfo * p) {
 }
 
 /* Read the encoder values and call the PID routine */
+//PID调试
 void updatePID() {
   /* Read the encoders */
   leftPID.Encoder = readEncoder(LEFT);
   rightPID.Encoder = readEncoder(RIGHT);
-  
+
   /* If we're not moving there is nothing more to do */
   if (!moving){
     /*
@@ -127,4 +130,3 @@ void updatePID() {
   /* Set the motor speeds accordingly */
   setMotorSpeeds(leftPID.output, rightPID.output);
 }
-
