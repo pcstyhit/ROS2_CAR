@@ -3,6 +3,6 @@
  -->
 
 <launch>
-    <include file="$(find ros1_car_main_launch)/launch/start_motion_laser.launch" />    
+    <include file="$(find ros1_car)/launch/start_motion_laser.launch" />    
     <node name="laser2basefootprint" pkg="tf2_ros" type="static_transform_publisher" args="0 0 0.1 0 0 0 /base_footprint /laser"/>
 </launch>
